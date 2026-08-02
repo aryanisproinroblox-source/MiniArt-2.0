@@ -1,0 +1,41 @@
+{
+  "model_name": "Dev4285/MiniArt-2.0",
+  "dataset_trained": "Qyrou/reasoning-corpus-4K-5M-v1",
+  "vision_encoder": "google/siglip-base-patch16-224",
+  "evaluation_date": "2026-08-02",
+  "eval_harness_version": "0.4.2",
+  "metrics": {
+    "gsm8k_math_reasoning": {
+      "accuracy": 79.1,
+      "baseline_miniart_1.0": 76.4,
+      "delta": "+2.7%"
+    },
+    "logical_deduction": {
+      "accuracy": 76.2,
+      "baseline_miniart_1.0": 73.8,
+      "delta": "+2.4%"
+    },
+    "multistep_arithmetic": {
+      "accuracy": 83.5,
+      "baseline_miniart_1.0": 81.2,
+      "delta": "+2.3%"
+    },
+    "code_reasoning": {
+      "accuracy": 71.4,
+      "baseline_miniart_1.0": 68.9,
+      "delta": "+2.5%"
+    },
+    "vqa_v2": {
+      "accuracy": 63.4,
+      "type": "Visual Question Answering"
+    },
+    "scienceqa_multimodal": {
+      "accuracy": 71.8,
+      "type": "Science Visual QA"
+    },
+    "chartqa": {
+      "accuracy": 58.2,
+      "type": "Chart Analysis"
+    }
+  }
+}
