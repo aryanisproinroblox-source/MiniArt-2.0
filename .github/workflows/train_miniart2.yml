@@ -1,0 +1,66 @@
+name: Train MiniArt 2.0 & Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  train-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get install -y cmake build-essential
+          pip install -q transformers==4.46.3 datasets peft trl accelerate \
+            sentencepiece gguf numpy matplotlib huggingface_hub requests Pillow lm_eval
+          echo "✅ Dependencies installed"
+
+      - name: Clone llama.cpp for GGUF conversion
+        run: |
+          git clone --depth 1 https://github.com/ggerganov/llama.cpp /tmp/llama.cpp
+          pip install -q -r /tmp/llama.cpp/requirements.txt
+          echo "✅ llama.cpp cloned"
+
+      - name: Train MiniArt 2.0
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python train_miniart2.py 2>&1 | tee training_log.txt
+
+      - name: Upload GGUF as GitHub artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miniart-2.0-gguf
+          path: /tmp/miniart2_gguf/*.gguf
+          retention-days: 30
+
+      - name: Upload benchmark chart as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miniart-2.0-assets
+          path: |
+            /tmp/miniart2_assets/
+            /tmp/miniart2_eval/
+          retention-days: 30
+
+      - name: Upload training log
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-log
+          path: training_log.txt
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "✅ MiniArt 2.0 training complete!"
+          echo "Download the GGUF from the artifacts above."
+          ls -lh /tmp/miniart2_gguf/ 2>/dev/null || echo "GGUF dir empty"
