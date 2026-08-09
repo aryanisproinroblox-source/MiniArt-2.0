@@ -21,112 +21,13 @@ jobs:
           path: /tmp/gguf/
 
       - name: List downloaded files
-        run: |
-          echo "Downloaded files:"
-          ls -lh /tmp/gguf/
+        run: ls -lh /tmp/gguf/
 
       - name: Install huggingface_hub
         run: pip install -q huggingface_hub
 
-      - name: Upload GGUF + README to HuggingFace
+      - name: Upload to HuggingFace
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python - <<'PYEOF'
-          import os
-          from huggingface_hub import HfApi
-
-          HF_TOKEN = os.environ["HF_TOKEN"]
-          HF_REPO  = "Dev4285/MiniArt-2.0"
-
-          api = HfApi(token=HF_TOKEN)
-
-          # Find GGUF file
-          gguf_path = None
-          for root, dirs, files in os.walk("/tmp/gguf"):
-              for f in files:
-                  if f.endswith(".gguf"):
-                      gguf_path = os.path.join(root, f)
-                      break
-
-          if not gguf_path:
-              print("ERROR: No GGUF file found!")
-              exit(1)
-
-          size_mb = os.path.getsize(gguf_path) / 1024**2
-          print(f"Found GGUF: {gguf_path} ({size_mb:.1f} MB)")
-
-          print("Uploading miniart-2.0-q4_k_m.gguf to HuggingFace...")
-          api.upload_file(
-              path_or_fileobj=gguf_path,
-              path_in_repo="miniart-2.0-q4_k_m.gguf",
-              repo_id=HF_REPO,
-              repo_type="model",
-              commit_message="Release real trained MiniArt 2.0 GGUF Q4_K_M"
-          )
-          print("[OK] GGUF uploaded!")
-
-          # Upload updated README with real benchmark scores
-          readme = f"""---
-license: apache-2.0
-base_model: Qwen/Qwen2.5-0.5B-Instruct
-tags:
-- text-generation
-- reasoning
-- gpqa-diamond
-- gguf
-- lm-studio
-- ollama
-- slm
-- lora
-datasets:
-- Manusagents/GPT-5.5-Gemini-3.1-Pro-Grok-4-Claude-Fable-5-Mythos-5-Qwen-3.7-Max-and-more-Distillation-Dataset
-pipeline_tag: text-generation
----
-
-# MiniArt 2.0
-
-A genuinely fine-tuned compact language model based on `Qwen/Qwen2.5-0.5B-Instruct`,
-trained with LoRA on the Manusagents multi-model reasoning distillation dataset.
-
-## Benchmark Results (Tested via lm-eval-harness)
-
-| Benchmark | Setting | Score |
-|:---|:---|:---:|
-| **GPQA Diamond** | 0-shot | **24.2%** |
-| **ARC-Easy** | 0-shot | **56.0%** |
-| **HellaSwag** | 10-shot | **49.0%** |
-
-> All scores are real — tested on the actual trained model using lm-eval-harness.
-
-## Training Details
-
-| Property | Value |
-|:---|:---|
-| Base Model | `Qwen/Qwen2.5-0.5B-Instruct` |
-| Method | LoRA (r=8, alpha=16) |
-| Dataset | Manusagents reasoning distillation dataset |
-| Steps | 60 gradient steps |
-| Quantization | Q4_K_M GGUF |
-| Size | {size_mb:.0f} MB |
-
-## How to Use
-
-Download `miniart-2.0-q4_k_m.gguf` and load it in LM Studio, Ollama, or llama.cpp.
-"""
-          with open("/tmp/README.md", "w") as f:
-              f.write(readme)
-
-          api.upload_file(
-              path_or_fileobj="/tmp/README.md",
-              path_in_repo="README.md",
-              repo_id=HF_REPO,
-              repo_type="model",
-              commit_message="Update README with real benchmark scores"
-          )
-          print("[OK] README uploaded!")
-          print(f"Model live at: https://huggingface.co/{HF_REPO}")
-          PYEOF
-
-      - name: Done
-        run: echo "MiniArt 2.0 successfully uploaded to HuggingFace!"
+          python upload_to_hf.py
