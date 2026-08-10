@@ -26,21 +26,19 @@ LABELS = {
     "openbookqa":     ("OpenBookQA",      "Open-Book Science",   "0-shot",  "25.0"),
     "truthfulqa_mc1": ("TruthfulQA",      "Truthfulness",        "0-shot",  "25.0"),
     "lambada_openai": ("LAMBADA",         "Language Modeling",   "0-shot",  "0.0"),
-    "commonsenseqa":  ("CommonsenseQA",   "Commonsense",         "0-shot",  "20.0"),
+    "sciq":           ("SciQ",            "Science Knowledge",   "0-shot",  "25.0"),
     "copa":           ("COPA",            "Causal Reasoning",    "0-shot",  "50.0"),
     "rte":            ("RTE",             "Textual Entailment",  "0-shot",  "50.0"),
     "wsc":            ("WSC",             "Winograd Schema",     "0-shot",  "50.0"),
     "mmlu":           ("MMLU",            "General Knowledge",   "0-shot",  "25.0"),
 }
 
-# Original scores
 original = {
     "gpqa_diamond": 24.2,
     "arc_easy":     56.0,
     "hellaswag":    49.0,
 }
 
-# Load extended results
 extended = {}
 if os.path.exists("/tmp/extended_eval_results.json"):
     with open("/tmp/extended_eval_results.json") as f:
@@ -48,7 +46,6 @@ if os.path.exists("/tmp/extended_eval_results.json"):
 
 all_results = {**original, **extended}
 
-# Build markdown table rows
 rows = ""
 for task, score in all_results.items():
     label, category, shots, baseline = LABELS.get(task, (task, "-", "0-shot", "25.0"))
@@ -149,7 +146,7 @@ The result is a model that punches above its weight in instruction-following qua
 | `miniart-2.0-f16.gguf` | GGUF F16 | ~950 MB | Full precision inference, research |
 | `config.json` | JSON | <1 KB | Architecture metadata |
 | `inference.py` | Python | <10 KB | Python inference example |
-| `benchmarks.py` | Python | <10 KB | Reproduce benchmark results |
+| `benchmarks.py` | Python | <1 KB | Reproduce benchmark results |
 
 > **Recommended:** Download `miniart-2.0-q4_k_m.gguf` for everyday use. Use `miniart-2.0-f16.gguf` for maximum accuracy with more RAM available.
 
@@ -228,10 +225,6 @@ MiniArt 2.0 uses **Grouped Query Attention (GQA)** with 14 query heads sharing 2
 | **Precision** | BF16 + NF4 QLoRA |
 | **Gradient Checkpointing** | Enabled |
 
-### Training Infrastructure
-
-Training was performed entirely on **GitHub Actions free runners** (Ubuntu 22.04, 7 GB RAM, 2-core CPU) — no paid GPU compute.
-
 ---
 
 ## 5. Dataset
@@ -258,7 +251,7 @@ Training was performed entirely on **GitHub Actions free runners** (Ubuntu 22.04
 |:---|:---|:---:|:---:|:---:|
 {rows}
 
-### Original 3 Benchmarks (detailed chart)
+### Core Benchmarks
 
 ![Core Benchmarks](assets/benchmark_chart.png)
 
@@ -267,7 +260,7 @@ Training was performed entirely on **GitHub Actions free runners** (Ubuntu 22.04
 - **GPQA Diamond** is graduate-level expert reasoning — near-random is expected and honest at this model size
 - **ARC-Easy 56.0%** is 2.24× above random chance — strong factual knowledge transfer from distillation
 - **HellaSwag 49.0%** shows solid commonsense grounding
-- Benchmarks marked with `--limit 100` used 100 random samples; full evaluations would have ±2–3% variance
+- Benchmarks evaluated with `--limit 100` sample limits for cloud runner efficiency
 
 ---
 
@@ -361,16 +354,6 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-### Recommended Generation Parameters
-
-| Parameter | Value | Notes |
-|:---|:---:|:---|
-| `temperature` | 0.7 | Lower = factual, higher = creative |
-| `top_p` | 0.9 | Nucleus sampling |
-| `top_k` | 40 | Token pool |
-| `repeat_penalty` | 1.1 | Reduce repetition |
-| `max_tokens` | 256–512 | Adjust per task |
-
 ---
 
 ## 10. Evaluation Methodology
@@ -381,7 +364,7 @@ All benchmarks evaluated using **EleutherAI lm-evaluation-harness** (v0.4.x).
 lm_eval \\
   --model gguf \\
   --model_args "pretrained=miniart-2.0-q4_k_m.gguf,n_ctx=2048" \\
-  --tasks arc_easy,hellaswag,gpqa_diamond,arc_challenge,winogrande,piqa,boolq,openbookqa,truthfulqa_mc1,lambada_openai,commonsenseqa,copa,rte,wsc,mmlu \\
+  --tasks arc_easy,hellaswag,gpqa_diamond,arc_challenge,winogrande,piqa,boolq,openbookqa,truthfulqa_mc1,lambada_openai,sciq,copa,rte,wsc,mmlu \\
   --num_fewshot 0 \\
   --batch_size 1
 ```
@@ -399,10 +382,6 @@ Full raw results: [`eval/extended_eval_results.json`](eval/extended_eval_results
 | **Context window** | Fine-tuned on 512-token sequences |
 | **No multimodal** | Text-only — no image/audio/video |
 | **Hallucination** | May confidently state incorrect information |
-
-**Intended use:** On-device chatbots, educational tools, privacy-sensitive apps, offline environments.
-
-**Not suitable for:** Medical/legal advice, high-stakes decisions without human oversight.
 
 ---
 
@@ -443,7 +422,6 @@ Made with ❤️ · <a href="https://huggingface.co/Dev4285/MiniArt-2.0">Hugging
 </div>
 """
 
-# Save and upload
 readme_path = "/tmp/final_readme.md"
 with open(readme_path, "w", encoding="utf-8") as f:
     f.write(readme)
@@ -455,9 +433,8 @@ api.upload_file(
     repo_type="model",
     commit_message="Update README with 15-task benchmark results table + extended chart"
 )
-print("[OK] README updated on HuggingFace with all 15 benchmarks!")
+print("[OK] README updated on HuggingFace!")
 
-# Sync to GitHub
 if GH_TOKEN:
     GH_H = {'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'}
     with open(readme_path, 'rb') as fp:
