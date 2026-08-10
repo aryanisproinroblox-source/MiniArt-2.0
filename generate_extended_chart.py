@@ -17,7 +17,6 @@ HF_TOKEN = os.environ["HF_TOKEN"]
 HF_REPO  = "Dev4285/MiniArt-2.0"
 api = HfApi(token=HF_TOKEN)
 
-# ── Load results ──────────────────────────────────────────────────────────────
 results_path = "/tmp/extended_eval_results.json"
 if not os.path.exists(results_path):
     print("No results file found, skipping chart generation")
@@ -33,10 +32,8 @@ original = {
     "hellaswag":    49.0,
 }
 
-# Merge
 all_results = {**original, **results}
 
-# Pretty labels
 LABELS = {
     "gpqa_diamond":   "GPQA Diamond",
     "arc_easy":       "ARC-Easy",
@@ -48,14 +45,13 @@ LABELS = {
     "openbookqa":     "OpenBookQA",
     "truthfulqa_mc1": "TruthfulQA",
     "lambada_openai": "LAMBADA",
-    "commonsenseqa":  "CommonsenseQA",
+    "sciq":           "SciQ",
     "copa":           "COPA",
     "rte":            "RTE",
     "wsc":            "WSC",
     "mmlu":           "MMLU",
 }
 
-# Random chance baselines
 BASELINES = {k: 50.0 if k in ("boolq","copa","rte","wsc","piqa","winogrande","lambada_openai") else 25.0
              for k in all_results}
 
@@ -64,7 +60,6 @@ scores = [all_results[t] for t in tasks]
 baselines = [BASELINES.get(t, 25.0) for t in tasks]
 labels = [LABELS.get(t, t) for t in tasks]
 
-# ── Plot ──────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(figsize=(18, 8), dpi=160)
 fig.patch.set_facecolor('#0d1117')
 ax.set_facecolor('#161b22')
@@ -111,7 +106,6 @@ plt.tight_layout()
 chart_path = "/tmp/extended_benchmark_chart.png"
 plt.savefig(chart_path, facecolor='#0d1117', dpi=160, bbox_inches='tight')
 plt.close()
-print(f"Chart saved: {chart_path}")
 
 api.upload_file(
     path_or_fileobj=chart_path,
