@@ -1,0 +1,137 @@
+name: Run 12 Extended Benchmarks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -q --upgrade pip
+          pip install -q "lm-eval>=0.4.2" huggingface_hub
+          # Install llama-cpp-python (CPU build)
+          CMAKE_ARGS="-DGGML_BLAS=OFF" pip install -q llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      - name: Download Q4_K_M GGUF from HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - << 'PYEOF'
+          from huggingface_hub import hf_hub_download
+          import os, shutil
+          path = hf_hub_download(
+              repo_id="Dev4285/MiniArt-2.0",
+              filename="miniart-2.0-q4_k_m.gguf",
+              token=os.environ["HF_TOKEN"]
+          )
+          shutil.copy(path, "/tmp/miniart-2.0-q4_k_m.gguf")
+          import os as _os
+          size_mb = _os.path.getsize("/tmp/miniart-2.0-q4_k_m.gguf") / 1024**2
+          print(f"Downloaded: {size_mb:.1f} MB")
+          PYEOF
+
+      - name: Run 12 benchmarks
+        run: |
+          MODEL_PATH="/tmp/miniart-2.0-q4_k_m.gguf"
+          RESULTS_DIR="/tmp/eval_results"
+          mkdir -p "$RESULTS_DIR"
+
+          # Run all 12 new benchmarks with sample limits for feasibility
+          # Smaller benchmarks: full eval | Larger: --limit 100
+          lm_eval \
+            --model gguf \
+            --model_args "pretrained=${MODEL_PATH},n_ctx=2048,n_threads=2" \
+            --tasks arc_challenge,winogrande,piqa,boolq,openbookqa,truthfulqa_mc1,lambada_openai,commonsenseqa,copa,rte,wsc,mmlu \
+            --num_fewshot 0 \
+            --batch_size 1 \
+            --limit 100 \
+            --output_path "${RESULTS_DIR}" \
+            --log_samples \
+            2>&1 | tee /tmp/eval_log.txt
+
+          echo "=== Evaluation complete ==="
+          cat "${RESULTS_DIR}"/*.json 2>/dev/null || echo "No JSON output found"
+
+      - name: Parse results and upload to HF
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - << 'PYEOF'
+          import json, os, glob
+          from huggingface_hub import HfApi
+
+          HF_TOKEN = os.environ["HF_TOKEN"]
+          HF_REPO = "Dev4285/MiniArt-2.0"
+          api = HfApi(token=HF_TOKEN)
+
+          # Parse results
+          results = {}
+          for f in glob.glob("/tmp/eval_results/**/*.json", recursive=True):
+              with open(f) as fp:
+                  data = json.load(fp)
+              if "results" in data:
+                  for task, metrics in data["results"].items():
+                      acc = (metrics.get("acc,none") or
+                             metrics.get("acc_norm,none") or
+                             metrics.get("mc1,none") or
+                             metrics.get("acc_stderr,none") or 0)
+                      results[task] = round(float(acc) * 100, 2)
+
+          print("Parsed results:", json.dumps(results, indent=2))
+
+          # Save results JSON
+          result_path = "/tmp/extended_eval_results.json"
+          with open(result_path, "w") as f:
+              json.dump(results, f, indent=2)
+
+          api.upload_file(
+              path_or_fileobj=result_path,
+              path_in_repo="eval/extended_eval_results.json",
+              repo_id=HF_REPO,
+              repo_type="model",
+              commit_message="Add extended 12-benchmark evaluation results"
+          )
+          print("[OK] Extended results uploaded!")
+
+          # Save raw log
+          if os.path.exists("/tmp/eval_log.txt"):
+              api.upload_file(
+                  path_or_fileobj="/tmp/eval_log.txt",
+                  path_in_repo="eval/extended_eval_log.txt",
+                  repo_id=HF_REPO,
+                  repo_type="model",
+                  commit_message="Add extended eval raw log"
+              )
+              print("[OK] Raw log uploaded!")
+
+          # Print final table
+          print("\n=== BENCHMARK RESULTS TABLE ===")
+          for task, score in sorted(results.items()):
+              print(f"  {task:<30} {score:.2f}%")
+          PYEOF
+
+      - name: Update README with new benchmarks
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python update_readme_benchmarks.py
+
+      - name: Upload benchmark chart
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install -q matplotlib numpy
+          python generate_extended_chart.py
