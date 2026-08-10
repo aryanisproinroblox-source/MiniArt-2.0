@@ -22,7 +22,6 @@ pipeline_tag: text-generation
 
 <div align="center">
 
-<img src="banner.jpg" alt="MiniArt 2.0 Banner" width="100%"/>
 
 # 🎨 MiniArt 2.0
 
