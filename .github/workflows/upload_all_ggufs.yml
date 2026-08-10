@@ -1,0 +1,75 @@
+name: Upload All GGUFs to HuggingFace
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload-all:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download GGUF artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: 31257924718
+          name: miniart-2.0-gguf
+          path: /tmp/gguf/
+
+      - name: List all files in artifact
+        run: |
+          echo "=== All extracted files ==="
+          find /tmp/gguf -type f | xargs ls -lh
+
+      - name: Install huggingface_hub
+        run: pip install -q huggingface_hub
+
+      - name: Upload all GGUFs to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - << 'PYEOF'
+          import os
+          from huggingface_hub import HfApi
+
+          HF_TOKEN = os.environ["HF_TOKEN"]
+          HF_REPO  = "Dev4285/MiniArt-2.0"
+          api = HfApi(token=HF_TOKEN)
+
+          all_files = []
+          for root, dirs, files in os.walk("/tmp/gguf"):
+              for f in files:
+                  all_files.append(os.path.join(root, f))
+
+          print(f"Found {len(all_files)} files:")
+          for fp in all_files:
+              print(f"  {fp} ({os.path.getsize(fp)/1024**2:.1f} MB)")
+
+          for fpath in all_files:
+              fname = os.path.basename(fpath)
+              size_mb = os.path.getsize(fpath) / 1024**2
+              # Rename for clarity
+              if "q4" in fname.lower() or "q4_k_m" in fname.lower():
+                  repo_name = "miniart-2.0-q4_k_m.gguf"
+              elif "f16" in fname.lower() or fname.endswith(".gguf"):
+                  if size_mb > 600:
+                      repo_name = "miniart-2.0-f16.gguf"
+                  else:
+                      repo_name = fname
+              else:
+                  repo_name = fname
+
+              print(f"Uploading {fname} ({size_mb:.1f} MB) -> {repo_name}")
+              api.upload_file(
+                  path_or_fileobj=fpath,
+                  path_in_repo=repo_name,
+                  repo_id=HF_REPO,
+                  repo_type="model",
+                  commit_message=f"Upload {repo_name} ({size_mb:.0f} MB)"
+              )
+              print(f"[OK] {repo_name} uploaded!")
+          PYEOF
